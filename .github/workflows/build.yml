@@ -6,8 +6,14 @@ on:
       - release/**
   pull_request:
   workflow_dispatch:
+    inputs:
+      commit:
+        description: If the commit you want to test isn't the head of a branch, provide its SHA here
+        required: false
 
 env:
+  HEAD_COMMIT: ${{ github.event.inputs.commit || github.sha }}
+
   CACHED_DEPENDENCY_PATHS: |
     ${{ github.workspace }}/node_modules
     ${{ github.workspace }}/packages/**/node_modules
@@ -23,7 +29,7 @@ env:
     ${{ github.workspace }}/packages/ember/instance-initializers
     ${{ github.workspace }}/packages/serverless/dist-awslambda-layer/*.zip
 
-  BUILD_CACHE_KEY: ${{ github.sha }}
+  BUILD_CACHE_KEY: ${{ github.event.inputs.commit || github.sha }}
 
 jobs:
   job_install_deps:
@@ -31,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -58,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -99,7 +105,7 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -131,7 +137,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -154,7 +160,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -215,7 +221,7 @@ jobs:
       matrix:
         node: [6, 8, 10, 12, 14, 16]
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -248,7 +254,7 @@ jobs:
       matrix:
         node: [10, 12, 14, 16]
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -280,7 +286,7 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
         # TODO: removing `fetch-depth` below seems to have no effect, and the commit which added it had no description,
         # so it's not clear why it's necessary. That said, right now ember tests are xfail, so it's a little hard to
@@ -333,7 +339,7 @@ jobs:
           - bundle: cjs
             tracing_only: true
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -371,7 +377,7 @@ jobs:
           - FirefoxHeadless
           - WebkitHeadless
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${{ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
@@ -400,7 +406,7 @@ jobs:
     timeout-minutes: 5
     continue-on-error: true
     steps:
-      - name: Check out current commit (${{ github.sha }})
+      - name: Check out current commit (${ env.HEAD_COMMIT }})
         uses: actions/checkout@v2
       - name: Set up Node
         uses: actions/setup-node@v1
