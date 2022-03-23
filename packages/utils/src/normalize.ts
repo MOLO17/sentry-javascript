@@ -31,8 +31,8 @@ export function normalize(input: unknown, depth: number = +Infinity, maxProperti
   try {
     // since we're at the outermost level, there is no key
     return visit('', input as UnknownMaybeWithToJson, depth, maxProperties);
-  } catch (_oO) {
-    return '**non-serializable**';
+  } catch (err) {
+    return { ERROR: `**non-serializable** (${err})` };
   }
 }
 
