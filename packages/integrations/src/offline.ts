@@ -109,7 +109,7 @@ export class Offline implements Integration {
    * @param event an event
    */
   private async _cacheEvent(event: Event): Promise<Event> {
-    return this.offlineEventStore.setItem<Event>(uuid4(), normalize(event));
+    return this.offlineEventStore.setItem<Event>(uuid4(), normalize(event) as Event);
   }
 
   /**

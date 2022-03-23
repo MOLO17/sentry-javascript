@@ -405,16 +405,16 @@ export abstract class BaseClient<B extends Backend, O extends Options> implement
           ...(b.data && {
             data: normalize(b.data, depth, maxBreadth),
           }),
-        })),
+        })) as Event['breadcrumbs'],
       }),
       ...(event.user && {
-        user: normalize(event.user, depth, maxBreadth),
+        user: normalize(event.user, depth, maxBreadth) as Event['user'],
       }),
       ...(event.contexts && {
-        contexts: normalize(event.contexts, depth, maxBreadth),
+        contexts: normalize(event.contexts, depth, maxBreadth) as Event['contexts'],
       }),
       ...(event.extra && {
-        extra: normalize(event.extra, depth, maxBreadth),
+        extra: normalize(event.extra, depth, maxBreadth) as Event['extra'],
       }),
     };
     // event.contexts.trace stores information about a Transaction. Similarly,
@@ -425,8 +425,8 @@ export abstract class BaseClient<B extends Backend, O extends Options> implement
     // so this block overwrites the normalized event to add back the original
     // Transaction information prior to normalization.
     if (event.contexts && event.contexts.trace) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      normalized.contexts.trace = event.contexts.trace;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      normalized.contexts!.trace = event.contexts.trace;
     }
 
     event.sdkProcessingMetadata = { ...event.sdkProcessingMetadata, baseClientNormalized: true };

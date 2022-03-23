@@ -5,7 +5,6 @@ import { memoBuilder, MemoFunc } from './memo';
 import { convertToPlainObject } from './object';
 import { getFunctionName } from './stacktrace';
 
-type UnknownMaybeWithToJson = unknown & { toJSON?: () => string };
 type Prototype = { constructor: (...args: unknown[]) => unknown };
 
 /**
@@ -27,10 +26,10 @@ type Prototype = { constructor: (...args: unknown[]) => unknown };
  * object in the normallized output..
  * @returns A normalized version of the object, or `"**non-serializable**"` if any errors are thrown during normalization.
  */
-export function normalize(input: unknown, depth: number = +Infinity, maxProperties: number = +Infinity): any {
+export function normalize(input: unknown, depth: number = +Infinity, maxProperties: number = +Infinity): unknown {
   try {
     // since we're at the outermost level, there is no key
-    return visit('', input as UnknownMaybeWithToJson, depth, maxProperties);
+    return visit('', input, depth, maxProperties);
   } catch (err) {
     return { ERROR: `**non-serializable** (${err})` };
   }
@@ -38,7 +37,7 @@ export function normalize(input: unknown, depth: number = +Infinity, maxProperti
 
 /** JSDoc */
 export function normalizeToSize<T>(
-  object: { [key: string]: any },
+  object: { [key: string]: unknown },
   // Default Node.js REPL depth
   depth: number = 3,
   // 100kB, as 200kB is max payload size, so half sounds reasonable
@@ -68,7 +67,7 @@ export function visit(
   depth: number = +Infinity,
   maxProperties: number = +Infinity,
   memo: MemoFunc = memoBuilder(),
-): Primitive | unknown[] | { [key: string]: unknown } {
+): Primitive | { [key: string]: unknown } {
   const [memoize, unmemoize] = memo;
 
   // if the value has a `toJSON` method, bail and let it do the work
@@ -230,6 +229,6 @@ function utf8Length(value: string): number {
 }
 
 /** Calculates bytes size of input object */
-function jsonSize(value: any): number {
+function jsonSize(value: unknown): number {
   return utf8Length(JSON.stringify(value));
 }
