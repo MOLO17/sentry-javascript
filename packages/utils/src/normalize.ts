@@ -1,4 +1,6 @@
-import { isPrimitive, isSyntheticEvent } from './is';
+import { Primitive } from '@sentry/types';
+
+import { isNaN, isSyntheticEvent } from './is';
 import { memoBuilder, MemoFunc } from './memo';
 import { convertToPlainObject } from './object';
 import { getFunctionName } from './stacktrace';
@@ -28,7 +30,7 @@ type Prototype = { constructor: (...args: unknown[]) => unknown };
 export function normalize(input: unknown, depth: number = +Infinity, maxProperties: number = +Infinity): any {
   try {
     // since we're at the outermost level, there is no key
-    return walk('', input as UnknownMaybeWithToJson, depth, maxProperties);
+    return visit('', input as UnknownMaybeWithToJson, depth, maxProperties);
   } catch (_oO) {
     return '**non-serializable**';
   }
@@ -52,79 +54,96 @@ export function normalizeToSize<T>(
 }
 
 /**
- * Walks an object to perform a normalization on it
+ * Visits a node to perform a normalization on it
  *
- * @param key of object that's walked in current iteration
- * @param value object to be walked
+ * @param key The key corresponding to the given node
+ * @param value The node to be visited
  * @param depth Optional number indicating how deep should walking be performed
- * @param maxProperties Optional maximum  number of properties/elements included in any single object/array
+ * @param maxProperties Optional maximum number of properties/elements included in any single object/array
  * @param memo Optional Memo class handling decycling
  */
-export function walk(
+export function visit(
   key: string,
-  value: UnknownMaybeWithToJson,
+  value: unknown,
   depth: number = +Infinity,
   maxProperties: number = +Infinity,
   memo: MemoFunc = memoBuilder(),
-): unknown {
+): Primitive | unknown[] | { [key: string]: unknown } {
   const [memoize, unmemoize] = memo;
 
-  // If we reach the maximum depth, serialize whatever is left
+  // if the value has a `toJSON` method, bail and let it do the work
+  const valueWithToJSON = value as unknown & { toJSON?: () => string };
+  if (valueWithToJSON && typeof valueWithToJSON.toJSON === 'function') {
+    try {
+      return valueWithToJSON.toJSON();
+    } catch (err) {
+      return `**non-serializable** (${err})`;
+    }
+  }
+
+  // get the simple cases out of the way first
+  if (value === null || (['number', 'boolean', 'string'].includes(typeof value) && !isNaN(value))) {
+    return value as Primitive;
+  }
+
+  const stringified = stringifyValue(key, value);
+
+  // Anything we could potentially dig into more (objects or arrays) will have come back as `"[object XXXX]"`.
+  // Everything else will have already been serialized, so if we don't see that pattern, we're done.
+  if (!stringified.startsWith('[object ')) {
+    return stringified;
+  }
+
+  // we're also done if we've reached the max depth
   if (depth === 0) {
-    return stringifyValue(key, value);
+    // At this point we know `serialized` is a string of the form `"[object XXXX]"`. Clean it up so it's just `"[XXXX]"`.
+    return stringified.replace('object ', '');
   }
 
-  // If value implements `toJSON` method, call it and return early
-  if (value !== null && value !== undefined && typeof value.toJSON === 'function') {
-    return value.toJSON();
-  }
-
-  // `makeSerializable` provides a string representation of certain non-serializable values. For all others, it's a
-  // pass-through. If what comes back is a primitive (either because it's been stringified or because it was primitive
-  // all along), we're done.
-  const serializable = stringifyValue(key, value);
-  if (isPrimitive(serializable)) {
-    return serializable;
-  }
-
-  // Create source that we will use for the next iteration. It will either be an objectified error object (`Error` type
-  // with extracted key:value pairs) or the input itself.
+  // Create source that we will use for the next iteration. Because not all of the properties we care about on `Error`
+  // and `Event` instances are ennumerable, we first convert those to plain objects. (`convertToPlainObject` is a
+  // pass-through for everything else.)
   const source = convertToPlainObject(value);
 
-  // Create an accumulator that will act as a parent for all future itterations of that branch
+  // Create an accumulator that will act as a parent for all future iterations of this branch, and keep track of the
+  // number of properties/entries we add to it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const acc: { [key: string]: any } = Array.isArray(value) ? [] : {};
+  let numAdded = 0;
 
-  // If we already walked that branch, bail out, as it's circular reference
+  // If we've already visited this branch, bail out, as it's circular reference
   if (memoize(value)) {
     return '[Circular ~]';
   }
 
-  let propertyCount = 0;
-  // Walk all keys of the source
+  // visit all keys of the source
   for (const innerKey in source) {
     // Avoid iterating over fields in the prototype if they've somehow been exposed to enumeration.
     if (!Object.prototype.hasOwnProperty.call(source, innerKey)) {
       continue;
     }
 
-    if (propertyCount >= maxProperties) {
+    if (numAdded >= maxProperties) {
       acc[innerKey] = '[MaxProperties ~]';
       break;
     }
 
-    propertyCount += 1;
+    // Recursively visit all the child nodes
+    const innerValue: unknown = source[innerKey];
+    acc[innerKey] = visit(innerKey, innerValue, depth - 1, maxProperties, memo);
 
-    // Recursively walk through all the child nodes
-    const innerValue = source[innerKey] as UnknownMaybeWithToJson;
-    acc[innerKey] = walk(innerKey, innerValue, depth - 1, maxProperties, memo);
+    numAdded += 1;
   }
 
-  // Once walked through all the branches, remove the parent from memo storage
+  // Once we've visited all the branches, remove the parent from memo storage
   unmemoize(value);
 
   // Return accumulated values
   return acc;
 }
+
+// TODO remove this in v7 (we don't use it anywhere, but it's a public method)
+export { visit as walk };
 
 /**
  * Stringify the given value. Handles various known special values and types.
